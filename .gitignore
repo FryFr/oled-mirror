@@ -3,6 +3,9 @@ venv/
 __pycache__/
 *.pyc
 
+# Modelos descargados (mirror_face.py los baja solo)
+python/models/
+
 # Arduino build
 arduino/**/build/
 

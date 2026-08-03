@@ -23,7 +23,21 @@ procesa el video en tiempo real y lo dibuja sobre una pantalla OLED de
                     OLED SH1106 128×64
 ```
 
-**~6 fps** estables a 115200 baudios (techo físico ≈ 11 fps a ese baudrate).
+**16 fps** estables a 500000 baudios — el cuello de botella ya no es el serial
+sino el volcado I2C a la pantalla (el `Wire` de AVR trocea cada página en
+transacciones de 32 bytes).
+
+## Modos
+
+| Modo | Archivo | Qué hace |
+|---|---|---|
+| 🪞 Clásico | `python/mirror.py` | Video real con dithering Floyd-Steinberg |
+| ⚡ Bordes | `python/mirror_canny.py` | Solo contornos (Canny), estética "Tron" |
+| 🙂 Cara | `python/mirror_face.py` | Contornos faciales con MediaPipe (óvalo, cejas, ojos, labios) + suavizado EMA |
+
+Todos comparten el mismo runner (`python/runner.py`): captura en hilo,
+pipeline envío/procesamiento y auto-reconexión serial. Crear un modo nuevo es
+escribir una función `frame → imagen 1-bit` de ~10 líneas.
 
 ## Hardware
 
@@ -64,8 +78,10 @@ arduino-cli upload  --fqbn arduino:avr:uno -p <PUERTO> arduino/oled_receiver
 # 4. (Opcional) Probar el pipeline con un patrón fijo
 ./venv/bin/python python/send_test_pattern.py --port <PUERTO>
 
-# 5. ¡El espejo!
-./venv/bin/python python/mirror.py --port <PUERTO>
+# 5. ¡El espejo! (elegí tu modo)
+./venv/bin/python python/mirror.py --port <PUERTO>        # clásico dithering
+./venv/bin/python python/mirror_canny.py --port <PUERTO>  # bordes
+./venv/bin/python python/mirror_face.py --port <PUERTO>   # cara MediaPipe
 ```
 
 La primera vez, macOS pide permiso de cámara para tu terminal
@@ -121,14 +137,19 @@ de macOS termina en un estado en el que **solo un replug físico lo revive**.
 
 ```
 arduino/oled_hello/      Hola mundo: verifica cableado y dirección I2C
-arduino/oled_receiver/   Receptor de frames serial → OLED
+arduino/oled_receiver/   Receptor de frames serial → OLED (500000 baudios)
 python/frame_utils.py    Empaquetado 1-bit + serial (pacing, ACK)
+python/runner.py         Runner común: captura en hilo + pipeline + reconexión
+python/mirror.py         Modo clásico (dithering FS)
+python/mirror_canny.py   Modo bordes (Canny)
+python/mirror_face.py    Modo cara (MediaPipe FaceLandmarker)
 python/send_test_pattern.py  Patrón de diagnóstico
-python/mirror.py         El espejo en vivo
 ```
 
 ## Roadmap
 
-- [ ] MediaPipe: cara detectada y auto-encuadrada / malla facial dibujada
-- [ ] 500000 baudios (0% de error en el Uno) → ~20 fps
-- [ ] Modos alternativos: bordes con Canny, solo landmarks
+- [x] 500000 baudios + pipeline envío/captura → **16 fps** (2.7× vs 115200)
+- [x] Modo bordes con Canny
+- [x] Modo cara con MediaPipe (contornos + suavizado EMA)
+- [ ] Cara auto-encuadrada (zoom/centrado siguiendo la detección)
+- [ ] Gestos con las manos para cambiar de modo en vivo

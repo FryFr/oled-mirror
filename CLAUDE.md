@@ -17,7 +17,8 @@ Cámara de la Mac → procesamiento en Python (OpenCV + MediaPipe) → conversi�
 ## Puerto serial
 
 - **Puerto:** `/dev/cu.usbmodem141011` (Arduino UNO detectado). Puede cambiar el sufijo entre reconexiones → reconfirmar con `arduino-cli board list`.
-- **Baudios:** 115200 para empezar. Subir a **500000** en el Hito 5 (0% de error medido en el Uno).
+- **Baudios:** **500000** (0% de error en el Uno; 115200 tiene ~3.5%). El receptor
+  y los scripts Python ya lo usan por defecto.
 - **Reset por DTR:** al abrir el puerto con pyserial el Uno se resetea. **Esperar 2s antes de enviar** (`open_serial()` en `python/frame_utils.py` ya lo hace).
 
 ## Protocolo de frame
@@ -35,7 +36,11 @@ Uno → Mac:  1 byte de ACK: 'K' ok · 'N' OLED no responde ping I2C · 'T' Wire
   verticales; bit `(y % 8)` = fila dentro de la page (bit 0 = arriba).
   Empaquetado en `frame_utils.pack_ssd1306()` (verificado con asserts + checksum
   en hardware).
-- Rendimiento medido: **6.7 fps estables** a 115200 (techo físico ~11 fps).
+- Rendimiento medido: **16 fps estables** a 500000 con pipeline (envío sin
+  esperar ACK → procesar el próximo frame → cobrar ACK) y pacing por cronograma
+  absoluto. Techo práctico: el Wire de AVR trocea cada página en transacciones
+  I2C de 32 bytes → volcado ~35ms. No mandar serial durante display() (gatillo
+  del stall CDC).
 
 ## Gotchas duros (verificados en hardware, costaron sangre)
 
@@ -95,13 +100,17 @@ python/send_test_pattern.py  Hito 2 — patrón de prueba fijo
 venv/                    Python 3.12 (opencv, mediapipe, pyserial, numpy, pillow)
 ```
 
-## Hitos
+## Estado
 
-1. ✅ Sketch hola mundo OLED (cableado + dirección I2C).
-2. ✅ Receptor de frames + patrón de prueba (pacing + ACK + dirty window fix). 6.7 fps.
-3. ✅ Espejo en vivo (`python/mirror.py`): 5.9 fps, auto-reconexión ante microcortes USB.
-4. MediaPipe: cara centrada en la OLED, o malla facial / landmarks dibujados.
-5. Optimizar: 500000 baudios, modos alternativos (Canny, solo landmarks).
+Todos los hitos completos. Modos disponibles (comparten `python/runner.py`):
+- `mirror.py` — clásico con dithering FS
+- `mirror_canny.py` — bordes Canny
+- `mirror_face.py` — contornos faciales MediaPipe Tasks API (FaceLandmarker,
+  modelo se auto-descarga a `python/models/`), suavizado EMA alpha 0.45.
+
+OJO: mediapipe 1.0 **eliminó `mp.solutions`** — solo existe la Tasks API
+(`mediapipe.tasks.python.vision`). Contornos en
+`vision.FaceLandmarksConnections.FACE_LANDMARKS_CONTOURS` (124 pares .start/.end).
 
 ## Cámara en macOS
 

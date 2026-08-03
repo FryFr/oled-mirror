@@ -21,9 +21,10 @@ FRAME_BYTES = 1024
 HEADER = bytes([0xAA, 0x55])
 
 # Pacing: el driver CDC de macOS se atasca si se le dispara el frame entero de
-# una rafaga (el 16u2 del Uno drena a baud rate, 40x mas lento que USB).
+# una rafaga (el 16u2 del Uno drena a baud rate, mucho mas lento que USB).
 # Se envia en chunks al ritmo de la linea fisica. Verificado en hardware.
-CHUNK = 64
+# 128 funciona estable a 500000; si volves a 115200 y ves perdidas, baja a 64.
+CHUNK = 128
 
 # Pesos de bit por fila-dentro-de-page (y % 8).
 _WEIGHTS = (1 << np.arange(8)).astype(np.uint8)
@@ -58,12 +59,19 @@ def send_frame(ser: serial.Serial, mono: np.ndarray, wait_ack: bool = True) -> b
     """
     data = HEADER + pack_ssd1306(mono)
     chunk_s = CHUNK * 10 / ser.baudrate      # 10 bits por byte en la linea
-    for i in range(0, len(data), CHUNK):
-        t0 = time.monotonic()
+    # Pacing contra cronograma absoluto: el overshoot de time.sleep (1-2ms en
+    # macOS) se absorbe en el siguiente deadline en vez de acumularse.
+    t_start = time.monotonic()
+    for n, i in enumerate(range(0, len(data), CHUNK), start=1):
         ser.write(data[i : i + CHUNK])
-        dt = time.monotonic() - t0
-        if dt < chunk_s:
-            time.sleep(chunk_s - dt)
+        wait = t_start + n * chunk_s - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
     if not wait_ack:
         return True
+    return read_ack(ser)
+
+
+def read_ack(ser: serial.Serial) -> bool:
+    """Espera el ACK de un frame ya enviado (para pipelining envio/captura)."""
     return ser.read(1) in (b"K", b"T")

@@ -11,7 +11,9 @@
 // Wire timeout: el Wire de AVR NO tiene timeout por defecto; si el bus I2C
 // glitchea, display() se cuelga para siempre. setWireTimeout lo evita.
 //
-// Baudios: 115200 (el Uno soporta hasta 500000 con 0% de error).
+// Baudios: 500000 — el 16MHz del Uno lo genera con 0% de error (a diferencia
+// de 115200, que tiene ~3.5%). A esta velocidad el cuello de botella pasa a
+// ser el volcado I2C a la pantalla (~25ms), no el serial.
 
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -34,7 +36,7 @@ static inline uint8_t readByte() {
 }
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(500000);
   Wire.begin();
   Wire.setClock(400000);            // I2C 400 kHz
   Wire.setWireTimeout(25000, true); // 25ms timeout + reset del bus si se cuelga
