@@ -1,0 +1,10 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Arduino build
+arduino/**/build/
+
+# macOS
+.DS_Store
