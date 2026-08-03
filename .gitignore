@@ -11,3 +11,6 @@ arduino/**/build/
 
 # macOS
 .DS_Store
+
+# Guion del video (privado, nunca subir)
+GUION.md
